@@ -1,0 +1,44 @@
+- name: Pause for 10 minutes to wait for restore to finish
+  ansible.builtin.pause:
+    minutes: 10
+
+- name: Get schedules on {{ dr_awx_url }} 
+  uri:
+    url: "https://{{ dr_awx_url }}/api/v2/schedules/"
+    method: GET
+    return_content: yes
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ awx_access_token }}"
+    force_basic_auth: yes
+    validate_certs: no
+  register: awx_job_schedules
+  delegate_to: localhost
+
+- name: Load into sanitized_jobs_to_disable 
+  set_fact:
+    sanitized_jobs_to_disable: "{{ awx_job_schedules.json.results |  json_query(jmesquery) }}"
+  vars:
+    jmesquery: "[?summary_fields.unified_job_template.unified_job_type == 'job']"
+
+
+# we only want to disable "job" type jobs and not system jobs or credential jobs
+- name: Print schedules
+  debug:
+    msg: "{{ item.name }} is enabled? {{ item.enabled }} and job type is {{ item.summary_fields.unified_job_template.unified_job_type }}"
+  loop: "{{ sanitized_jobs_to_disable }}"
+  #loop: "{{ awx_job_schedules.json.results }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Disable a schedule
+  awx.awx.schedule:
+    name: "{{ item.name }}"
+    enabled: False
+    controller_host : "https://{{ dr_awx_url }}"
+    controller_oauthtoken : "{{ awx_access_token }}"
+    validate_certs: False
+  loop: "{{ sanitized_jobs_to_disable }}"
+  loop_control:
+    label: "Disabling {{ item.name }} from schedule on {{ dr_awx_url }}"
+

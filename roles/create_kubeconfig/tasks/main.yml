@@ -1,0 +1,3 @@
+- name: create local kubeconfig
+  shell: "echo '{{ kubeconfigtogenerate }}' > kubeconfiglocal"
+

@@ -1,0 +1,26 @@
+- name: Fail playbook if weirdness detected
+  ansible.builtin.fail:
+    msg: I fear we are not using a secondary node and may do something horrible. Quitting!
+  when: 'detmykubecontext is not defined or (detmykubecontext != "mysecondarynodeprod" and detmykubecontext != "mysecondarynodestaging")'
+
+- name: Pause for 5 minutes to wait for restore to finish
+  ansible.builtin.pause:
+    minutes: 5
+
+- name: "Run restore for {{detmykubecontext}}"
+  kubernetes.core.k8s:
+    kubeconfig: kubeconfiglocal
+    state: present
+    validate_certs: no
+    context: "{{ detmykubecontext }}"
+    definition:
+      apiVersion: awx.ansible.com/v1beta1
+      kind: AWXRestore
+      metadata:
+        name: awxdrauto
+        namespace: awx
+      spec:
+        deployment_name: awx
+        backup_dir: "{{ backup_dir }}"
+        backup_pvc: awx-backup-claim
+

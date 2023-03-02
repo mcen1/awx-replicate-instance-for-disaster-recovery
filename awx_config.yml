@@ -1,0 +1,68 @@
+---
+projects:
+  - name: "automation-awx-backup"
+    description: ""
+    organization: "ITOA Automation"
+    default_environment: "AWX EE (latest)"
+    scm_url: "https://github.com/abcorp-itops/automation-awx-backup.git"
+    scm_branch: "{{ deploy_env }}"
+    scm_credential: "{{ github_credential }}"
+    scm_update_on_launch: yes
+job_templates:
+  - name: "automation-awx-backup-job"
+    description: ""
+    inventory: "Empty ITOA Inventory"
+    project: "automation-awx-backup"
+    execution_environment: "AWX EE (latest)"
+    playbook: "backup-localstorage.yml"
+    survey_enabled: no
+    ask_variables_on_launch: yes
+    notification_templates_started: 
+      - 'ITOATeamsAWXAlerts'
+    notification_templates_success:
+      - 'SMTPRelayNoReplyITOA'
+      - 'ITOATeamsAWXAlerts'
+    notification_templates_error:
+      - 'SMTPRelayNoReplyITOA'
+      - 'ITOATeamsAWXAlerts'
+    extra_vars:
+      k8senvironment: "{{ deploy_env }}"
+      dontrestoretosecondary: False
+    # new option, credentials the job template needs to use
+    templatecredentials:
+      - "kubeconfig_awx"
+      - "ITOABTTest"
+    roles:
+      - type: execute
+        teams:
+          - "ITOA Automation Users"
+  # daily backup report job
+  - name: "automation-awx-backup-report-job"
+    description: ""
+    inventory: "Empty ITOA Inventory"
+    project: "automation-awx-backup"
+    execution_environment: "AWX EE (latest)"
+    playbook: "report-backups.yml"
+    survey_enabled: no
+    extra_vars:
+      k8senvironment: "{{ deploy_env }}"
+    templatecredentials:
+      - "kubeconfig_awx"
+    roles:
+      - type: execute
+        teams:
+          - "ITOA Automation Users"
+
+schedules:
+  - name: "automation-awx-backup-schedule"
+    unified_job_template: "automation-awx-backup-job"
+    rrule: "DTSTART:20191219T020551Z RRULE:FREQ=DAILY;INTERVAL=1"
+  - name: "automation-awx-backup-report-schedule"
+    unified_job_template: "automation-awx-backup-report-job"
+    rrule: "DTSTART:20191219T041551Z RRULE:FREQ=DAILY;INTERVAL=1"
+
+job_launch:
+  - job_template: "automation-awx-backup-report-job"
+    organization: "ITOA Automation"
+
+...

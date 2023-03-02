@@ -1,0 +1,5 @@
+- name: remove kubeconfig file
+  file:
+    name: kubeconfiglocal
+    state: absent
+

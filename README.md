@@ -1,0 +1,1 @@
+This playbook will initiate an AWX backup to both the local storage and a remote node, then it'll destroy the remote node's AWX instance (AWX, postgres PVC, and existing backup), then do a restore on the remote node, then turn off scheduled tasks in the remote node.

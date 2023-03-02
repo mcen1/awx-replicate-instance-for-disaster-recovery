@@ -1,0 +1,28 @@
+---
+- name: Report backups
+  hosts: localhost
+  gather_facts: false
+  become: false
+  collections:
+    - community.general
+  vars_files:
+    - vars/{{ k8senvironment }}.yml
+  vars:
+    ansible_connection: local
+  tasks:
+    - name: Generate kubeconfig
+      include_role:
+        name: create_kubeconfig
+      vars:
+        kubeconfigtogenerate: "{{ kubeconfig_content }}"
+    - name: Report backups
+      include_role:
+        name: report_backups
+    - name: Copy to secondary, if applicable
+      include_role:
+        name: report_backups_secondary
+      when: abkubecontextsecondary is defined
+    - name: Remove kubeconfig
+      include_role:
+        name: remove_kubeconfig
+

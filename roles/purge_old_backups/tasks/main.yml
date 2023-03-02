@@ -1,0 +1,27 @@
+- name: Find ab-awx-backup-worker pod for backup pruning
+  kubernetes.core.k8s_info:
+    kind: Pod
+    kubeconfig: kubeconfiglocal
+    namespace: awx
+    context: "{{ abkubecontext }}"
+    label_selectors:
+      - app = ab-awx-backup-worker
+  register: backup_podname_full
+- name: set backup_podname fact
+  set_fact:
+    backup_podname: "{{ backup_podname_full.resources[0].metadata.name }}"
+- name: print
+  debug:
+    msg: "{{ backup_podname }}"
+- name: Prune old backup dirs on pvc
+  kubernetes.core.k8s_exec:
+    namespace: awx
+    kubeconfig: kubeconfiglocal
+    context: "{{ abkubecontext }}"
+    pod: "{{ backup_podname }}"
+    command: '/bin/sh -c "find /pvc/* -type d -mtime +30 -exec /bin/rm -rf {} \;"'
+  register: command_status
+  failed_when: "'No such file or directory' not in command_status.stderr and command_status.rc != 0"
+- name: Print command_status output
+  debug:
+    msg: "{{ command_status }}"

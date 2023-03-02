@@ -1,0 +1,43 @@
+- name: Find ab-awx-backup-worker pod for backup copy
+  kubernetes.core.k8s_info:
+    kind: Pod
+    kubeconfig: kubeconfiglocal
+    namespace: awx
+    context: "{{ abkubecontextsecondary }}"
+    label_selectors:
+      - app = ab-awx-backup-worker
+  register: secondary_podname_full
+- name: set backup_podname fact
+  set_fact:
+    secondary_podname: "{{ secondary_podname_full.resources[0].metadata.name }}"
+- name: Print secondary podname
+  debug:
+    msg: "{{ secondary_podname }}"
+- name: Command to run
+  debug:
+    msg: '/bin/sh -c "mkdir {{ backup_dir|replace("/backups/","/pvc/") }} && kubectl --namespace=awx --kubeconfig=/etc/kubeconfig/kubeconfig --context={{ abkubecontext }} cp --retries=10 \"{{backup_podname}}:{{backup_dir|replace("/backups/","/pvc/")}}\" \"{{backup_dir|replace("/backups/","/pvc/")}}\""'
+- name: Copy to PVC on secondary node
+  kubernetes.core.k8s_exec:
+    namespace: awx
+    kubeconfig: kubeconfiglocal
+    context: "{{ abkubecontextsecondary }}"
+    pod: "{{ secondary_podname }}"
+    # exec into container running on secondary node, then cp the backup from the primary to our secondary pvc
+    command: '/bin/sh -c "mkdir {{ backup_dir|replace("/backups/","/pvc/") }} && cd {{ backup_dir|replace("/backups/","/pvc/") }} && kubectl --kubeconfig=/etc/kubeconfig/kubeconfig --context={{ abkubecontext }} cp --retries=10 {{backup_podname}}:{{backup_dir|replace("/backups/","/pvc/")}} . "'
+  register: command_status
+- name: Print command_status output
+  debug:
+    msg: "{{ command_status }}"
+- name: Prune old backup dirs on secondary pvc
+  kubernetes.core.k8s_exec:
+    namespace: awx
+    kubeconfig: kubeconfiglocal
+    context: "{{ abkubecontextsecondary }}"
+    pod: "{{ secondary_podname }}"
+    command: '/bin/sh -c "find /pvc/* -type d -mtime +30 -exec /bin/rm -rf {} \;"'
+  register: command_status2
+  failed_when: "'No such file or directory' not in command_status2.stderr and command_status2.rc != 0"
+- name: Print command_status2 output
+  debug:
+    msg: "{{ command_status2 }}"
+

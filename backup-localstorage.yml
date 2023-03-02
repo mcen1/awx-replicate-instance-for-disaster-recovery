@@ -1,0 +1,58 @@
+---
+- name: Configure Ansible AWX Resources
+  hosts: localhost
+  gather_facts: true
+  become: false
+  vars_files:
+    - vars/{{ k8senvironment }}.yml
+  vars:
+    ansible_connection: local
+  collections:
+    - beyondtrust
+  pre_tasks:
+    - name: "Fetch AWX bearer creds from BT"
+      ansible.builtin.set_fact:
+        awx_access_token: "{{ item.value }}"
+      with_dict: "{{ awx_bearer_creds }}"
+      loop_control:
+        label: "{{ item.key }}"
+      vars:
+        awx_bearer_creds: "{{ lookup('beyondtrust.passwords', bt_awx_token_title) }}"
+        bt_folder: "Service Accounts"
+        bt_uri: https://beyondtrusturl.mysecret.company.com/
+      delegate_to: localhost
+      run_once: true
+      no_log: true
+  tasks:
+    - name: Generate kubeconfig
+      include_role:
+        name: create_kubeconfig
+      vars:
+        kubeconfigtogenerate: "{{ kubeconfig_content }}"
+    - name: Back up AWX instance
+      include_role: 
+        name: backup_awx_via_k8s
+    - name: Purge old backups
+      include_role:
+        name: purge_old_backups
+    - name: Copy to secondary, if applicable
+      include_role:
+        name: copy_to_secondary
+      when: abkubecontextsecondary is defined
+    # stub for steps for DR restore
+    - name: Destroy DR environment
+      include_role:
+        name: destroy_dr_environment 
+      when: "(k8senvironment == 'production' or k8senvironment == 'staging') and dontrestoretosecondary != True"
+    - name: Restore to DR environment
+      include_role:
+        name: restore_to_dr 
+      when: "(k8senvironment == 'production' or k8senvironment == 'staging') and dontrestoretosecondary != True"
+      # stub to disable schedules
+    - name: Disable schedules in DR environment
+      include_role:
+        name: disable_all_schedules 
+      when: "(k8senvironment == 'production' or k8senvironment == 'staging') and dontrestoretosecondary != True"
+    - name: Remove kubeconfig
+      include_role: 
+        name: remove_kubeconfig

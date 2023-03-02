@@ -1,0 +1,4 @@
+abkubecontext: "primaryservername"
+abkubecontextsecondary: "secondaryservername"
+dr_awx_url: "awx-dr.company.com"
+bt_awx_token_title: "Some token in beyond trust or whatever secret store you use"

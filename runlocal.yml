@@ -1,0 +1,14 @@
+---
+- name: Configure Ansible AWX Resources
+  hosts: localhost
+  gather_facts: true
+  become: false
+  vars_files:
+    - vars/{{ k8senvironment }}.yml
+  vars:
+    ansible_connection: local
+  tasks:
+    - name: Destroy DR environment
+      include_role:
+        name: destroy_dr_environment 
+      when: "(k8senvironment == 'production' or k8senvironment == 'staging') and dontrestoretosecondary != True"

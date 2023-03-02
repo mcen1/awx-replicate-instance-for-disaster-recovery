@@ -1,0 +1,93 @@
+- name: Set context hard for staging
+  set_fact:
+    detmykubecontext: 'mysecondarynodestaging'
+  when: k8senvironment == 'staging'
+
+- name: Set context hard for production
+  set_fact:
+    detmykubecontext: 'mysecondarynodeprod'
+  when: k8senvironment == 'production'
+
+- name: Fail playbook if weirdness detected
+  ansible.builtin.fail:
+    msg: "I fear we are not using a secondary node and may do something horrible. Quitting! {{ detmykubecontext }} "
+  when: 'detmykubecontext is not defined or (detmykubecontext != "mysecondarynodestaging" and detmykubecontext != "mysecondarynodeprod")'
+
+- name: Print context
+  debug:
+    msg: "{{ detmykubecontext }} is our current context in k8s. {{ k8senvironment }} is our current k8s environment. {{ backup_dir }} is our backup dir. "
+
+- name: Find existing restore object
+  kubernetes.core.k8s_info:
+    api_version: awx.ansible.com/v1beta1
+    kind: AWXRestore
+    name: awxdrauto 
+    kubeconfig: kubeconfiglocal
+    namespace: awx
+    context: "{{ detmykubecontext }}"
+  register: awx_restore_backup
+
+- name: Find existing AWX object
+  kubernetes.core.k8s_info:
+    api_version: awx.ansible.com/v1beta1
+    kind: awx
+    name: awx
+    kubeconfig: kubeconfiglocal
+    namespace: awx
+    context: "{{ detmykubecontext }}"
+  register: awx_instance
+
+- name: Find existing AWX postgres PVC
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: pvc
+    name: postgres-13-awx-postgres-13-0
+    kubeconfig: kubeconfiglocal
+    namespace: awx
+    context: "{{ detmykubecontext }}"
+  register: awx_postgres_pvc
+
+- name: Find existing AWX pods
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: pod
+    kubeconfig: kubeconfiglocal
+    namespace: awx
+    context: "{{ detmykubecontext }}"
+  register: awx_pods
+
+- name: "Remove AWX Disaster Restore on {{ detmykubecontext }}"
+  kubernetes.core.k8s:
+    api_version: awx.ansible.com/v1beta1
+    kind: awxrestore
+    namespace: awx
+    kubeconfig: kubeconfiglocal
+    state: absent
+    validate_certs: no
+    name: awxdrauto 
+    context: "{{ detmykubecontext }}"
+  when: awx_restore_backup is defined and awx_restore_backup.resources|length > 0
+
+- name: "Remove AWX instance on {{ detmykubecontext }}"
+  kubernetes.core.k8s:
+    api_version: awx.ansible.com/v1beta1
+    kind: awx
+    namespace: awx
+    kubeconfig: kubeconfiglocal
+    state: absent
+    validate_certs: no
+    name: awx
+    context: "{{ detmykubecontext }}"
+  when: awx_instance is defined and awx_instance.resources|length > 0
+
+- name: "Remove PVC postgres-13-awx-postgres-13-0 on {{ detmykubecontext }}"
+  kubernetes.core.k8s:
+    api_version: v1
+    kind: pvc
+    namespace: awx
+    kubeconfig: kubeconfiglocal
+    state: absent
+    validate_certs: no
+    name: postgres-13-awx-postgres-13-0
+    context: "{{ detmykubecontext }}"
+  when: awx_postgres_pvc is defined and awx_postgres_pvc.resources|length > 0
